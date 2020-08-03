@@ -2,6 +2,7 @@
  * Copyright (c) 2020 Louis Suen
  * Licensed under the MIT License. See the LICENSE file for the full text.
  */
+
 #ifndef __TAB_GBK2UNI__H__D76B1C4F_4C55_4497_AA37_CE482DC90E19
 #define __TAB_GBK2UNI__H__D76B1C4F_4C55_4497_AA37_CE482DC90E19
 
@@ -10,6 +11,7 @@
 //[(0xce - 0x81) * 12 * 16 + 0xd2 - 0x40] = 14930
 //uni:0x6211
 //utf8:0xe68891
+
 static const unsigned short tab_uni_contents[] = {
 0X4E02,0X4E04,0X4E05,0X4E06,0X4E0F,0X4E12,0X4E17,0X4E1F,0X4E20,0X4E21,0X4E23,0X4E26,0X4E29,0X4E2E,0X4E2F,0X4E31,
 0X4E33,0X4E35,0X4E37,0X4E3C,0X4E40,0X4E41,0X4E42,0X4E44,0X4E46,0X4E4A,0X4E51,0X4E55,0X4E57,0X4E5A,0X4E5B,0X4E62,
@@ -1524,6 +1526,230 @@ static const unsigned short tab_uni_contents[] = {
 0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,
 0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,0X0001,
 };
+
+
+static int is_valid_gbk(const unsigned char *data, size_t len)
+{
+	//int ret = -1;
+	int i, flg;
+	const unsigned char *cur;
+
+	if (NULL == data || len <= 0) {
+		return 0;
+	}
+
+	flg = 1;
+
+	for (i = 0, cur = data; i < len; i ++, cur ++) {
+    		if ((*cur & 0x80) == 0) {
+			/* 0xxxxxxx */
+      			continue;
+		} else if (*cur > 0x80 && *cur < 0xFF) {
+			if (i + 1 >= len) {
+				flg = 0;
+				break;	
+			}
+			i += 1;
+			cur += 1;
+			if (*cur < 0x40 || *cur == 0xFF || *cur == 0x7F) {
+				flg = 0;
+				break;	
+			}
+
+		} else {
+			flg = 0;
+			break;
+
+		}
+	}
+	
+	return (flg);
+
+}
+static int gbk_uni2utf8(unsigned short ns, unsigned char buf[4]) 
+{
+	//LOGD("ns = [%hu][%#hx]\n", ns, ns);
+	//if (ns < 0x80 || NULL == buf) {
+	if (ns < 0xFF || NULL == buf) { //Hanzi encoding greater than 0xFF
+		return (-1);
+	}	
+#if 1
+	if (ns == 0x0251 || ns == 0x0261 || ns == 0x02C9 || ns == 0x02C7 || 
+	    ns == 0x02CA || ns == 0x02CB || ns == 0x02D9 || ns == 0x0401 || ns == 0x0451) {
+		return (-1);
+	}
+	if (ns >= 0x0410 && ns <= 0x044F) {
+		return (-1);
+	}
+#endif
+	if (0 != (ns & 0xF100)) {
+		buf[0] = (ns & 0xF000) >> 12 | 0xE0;
+		buf[1] = (ns & 0x0FC0) >> 6  | 0x80;
+		buf[2] = (ns & 0x003F)       | 0x80;
+		buf[3] = 0;
+	} else {
+		buf[0] = (ns & 0x07C0) >> 6 | 0xE0;
+		buf[1] = (ns & 0x003F)      | 0x80;
+		buf[2] = 0;
+		buf[3] = 0;
+	}
+	return 0;
+}
+static char *gbk2utf8(const unsigned char *data, size_t len, int *err)
+{
+	int rv;
+	int i, j, flg, count;
+	char *p_ret = NULL;
+	unsigned char *p_cur = NULL, *p_src = NULL;
+	const unsigned char *cur;
+	unsigned char buf[4];
+
+	if (NULL == data || len <= 0) {
+		if (err) {
+			*err = -1;
+		}
+		return NULL;
+	}
+	rv = is_valid_gbk(data, len);
+	if (0 == rv) {
+		if (err) {
+			*err = -2;
+		}
+		return NULL;	
+	}
+	
+	p_src = (unsigned char *)malloc(len * 2);
+	if (NULL == p_src) {
+		if (err) {
+			*err = -5;
+		}
+		//LOGE("malloc(%zd) failed!\n", len * 2);
+		goto __oops;
+	}
+
+	flg = 1;
+
+	for (i = 0, cur = data, p_cur = p_src; i < len && flg; i ++, cur ++) {
+    		if ((*cur & 0x80) == 0) {
+			/* 0xxxxxxx */
+			*p_cur++ = *cur;
+      			continue;
+		} else if (*cur > 0x80 && *cur < 0xFF) {
+			if (i + 1 >= len) {
+				flg = 0;
+				break;	
+			}
+			count = *cur - 0x81;
+			i += 1;
+			cur += 1;
+			if (*cur < 0x40 || *cur == 0xFF || *cur == 0x7F) {
+				flg = 0;
+				break;	
+			}
+			count = count * 12 * 16 + *cur - 0x40;
+			rv = gbk_uni2utf8(tab_uni_contents[count], buf);
+			if (0 != rv) {
+				flg = 0;
+				break;	
+			}			
+			for (j = 0; j < sizeof(buf); j ++) {
+				if (0 == buf[j]) 
+					break;
+				*p_cur++ = buf[j];
+			}
+		} else {
+			flg = 0;
+			break;
+
+		}
+	}
+
+	if (0 != flg) {
+		if (err) {
+			*err = 0;
+		}
+		*p_cur = 0;
+		p_ret = strdup((char *)p_src);
+		
+	} else {
+		if (err) {
+			*err = -9;
+		}
+	}
+
+__oops:
+	if (p_src) {
+		free(p_src);
+		p_src = NULL;
+	}
+
+	return p_ret;
+} 
+
+static int is_valid_utf8(const unsigned char *data, size_t len)
+{
+	//int ret = -1;
+	int i, flg;
+	const unsigned char *cur;
+
+	if (NULL == data || len <= 0) {
+		return 0;
+	}
+
+	flg = 1;
+
+	for (i = 0, cur = data; i < len; i ++, cur ++) {
+    		if ((*cur & 0x80) == 0) {
+			/* 0xxxxxxx */
+      			continue;
+		} else if ((*cur & 0xE0) == 0xC0) {
+			/* 110xxxxx 10xxxxxx */
+			if (i + 1 >= len) {
+				flg = 0;
+				break;	
+			}
+			if ((*(cur + 1) & 0xC0) != 0x80) {
+				flg = 0;
+				break;	
+			}
+			i += 1;
+			cur += 1;
+			
+		} else if ((*cur & 0xF0) == 0xE0) {
+			/* 1110xxxx 10xxxxxx 10xxxxxx */
+			if (i + 2 >= len) {
+				flg = 0;
+				break;	
+			}
+			if ((*(cur + 1) & 0xC0) != 0x80 || (*(cur + 2) & 0xC0) != 0x80) {
+				flg = 0;
+				break;	
+			}
+			i += 2;
+			cur += 2;
+
+		} else if ((*cur & 0xF8) == 0xF0) {
+			/* 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx */
+			if (i + 3 >= len) {
+				flg = 0;
+				break;	
+			}
+			if ((*(cur + 1) & 0xC0) != 0x80 || (*(cur + 2) & 0xC0) != 0x80 || (*(cur + 3) & 0xC0) != 0x80) {
+				flg = 0;
+				break;	
+			}
+			i += 3;
+			cur += 3;
+		} else {
+			flg = 0;
+			break;
+
+		}
+	}
+	
+	return (flg);
+
+}
 
 #endif /*end of __TAB_GBK2UNI__H__D76B1C4F_4C55_4497_AA37_CE482DC90E19 */
 
