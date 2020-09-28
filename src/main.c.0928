@@ -64,19 +64,48 @@ int main(int argc, char *argv[])
 {
 
 	int ret = -1, err, rv;
+	int i, j, len;
 	int fd = -1;
 	char *filename = NULL;
 
   	void* mem_ptr = MAP_FAILED;
 	size_t mem_size = 0;
 	char *tmp_ptr = NULL;
+	char tmp_buf[4];
+
+	FILE *fp = NULL;
 
 	LOGD("argc = [%d]\n", argc);
 	if (argc < 2 || NULL == argv[1] || strlen(argv[1]) <= 0) {
 		LOGE("input param error!!!(It can not find filename.)\n");
 		goto __oops;
 	}
-	
+
+	fp = fopen("gnew.txt", "w");
+        if (fp == NULL) {
+		LOGE("ERROR: unable to open %s\n", "gnew.txt");
+		goto __oops;
+	}
+	memset(tmp_buf, 0x00, sizeof(tmp_buf));
+	tmp_buf[0] = 0xb2;
+	tmp_buf[1] = 0xc2;
+	//fwrite(tmp_buf, 2, 1, fp);
+
+	tmp_buf[0] = 0xC2;
+	tmp_buf[1] = 0x80;
+
+	tmp_buf[0] = 0xD5;
+	tmp_buf[1] = 0xA0;
+
+	int v = *(tmp_buf + 1) & 0x3F;
+	int t = *tmp_buf & 0x1F;
+	LOGD("t = [%#X]\n", t);
+	LOGD("v = [%#X]\n", v);
+
+	v |= t << 6;
+
+	LOGD("v = [%#X]\n", v);
+
 	filename = argv[1];
 	fd = open(filename, O_RDONLY);
   	if (fd < 0) {
@@ -105,28 +134,36 @@ int main(int argc, char *argv[])
   	}
 	
 	
-	rv = is_valid_utf8((const unsigned char*)mem_ptr, strlen((char*)mem_ptr));
-	LOGD("is_valid_utf8 = [%d]\n", rv);
-	if (0 != rv) {
-		if (0 != is_valid_gbk((const unsigned char*)mem_ptr, strlen((char*)mem_ptr))) {
-			rv = 0;	
+	for (i = 0, j = 0, len = (int)mem_size - 1; i < len; i += 2) {
+		memset(tmp_buf, 0x00, sizeof(tmp_buf));
+		memmove(tmp_buf, (char *)mem_ptr + i, 2);
+		if ((tmp_buf[0]&0xFF) >= 0xD0) {
+			//continue;
 		}
-	}
+		rv = is_valid_utf8((const unsigned char *)tmp_buf, 2);
+		//LOGD("is_valid_utf8 = [%d]\n", rv);
 
-	if (rv) {
-		LOGD("mem_ptr = [%zu][%s]\n", strlen(mem_ptr), mem_ptr);
-	} else {
-		err = 0;
-		tmp_ptr = gbk2utf8(mem_ptr, mem_size, &err);
-		if (NULL == tmp_ptr) {
-			LOGE("tmp_ptr = [%d][0][NULL]\n", err);
-			//LOGD("mem_ptr's encoding is unknow! \n");
-		} else {
-			LOGD("tmp_ptr = [%d][%zu][%s]\n", err, strlen(tmp_ptr), tmp_ptr);
+		if (rv) {
+			j ++;
+			LOGD("mem_ptr = [%zu][%02X%02X][%s]\n", strlen(tmp_buf), tmp_buf[0]&0xFF, tmp_buf[1]&0xFF, tmp_buf);
+			fwrite(tmp_buf, 2, 1, fp);
+			if (j % 64 == 0) {
+				//fwrite("\n", 1, 1, fp);
+			}
+		}
+
+		if (j > 1645) {
+			//break;
+		}
+		if (j > 100) {
+			//break;
 		}
 	}
 
 	
+	LOGD("j = [%d]\n", j);
+
+
 
 __oops:
 	
@@ -144,6 +181,11 @@ __oops:
 	if (fd >= 0) {
 		close(fd);
 		fd = -1;
+	}
+
+	if (fp) {
+		fclose(fp);
+		fp = NULL;
 	}
 	
 	return 0;

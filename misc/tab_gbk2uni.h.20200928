@@ -1685,10 +1685,11 @@ __oops:
 
 	return p_ret;
 } 
+
 static int is_valid_utf8(const unsigned char *data, size_t len)
 {
 	//int ret = -1;
-	int i, flg, t, v;
+	int i, flg;
 	const unsigned char *cur;
 
 	if (NULL == data || len <= 0) {
@@ -1703,10 +1704,6 @@ static int is_valid_utf8(const unsigned char *data, size_t len)
       			continue;
 		} else if ((*cur & 0xE0) == 0xC0) {
 			/* 110xxxxx 10xxxxxx */
-//			if ((*cur & 0x1F) < 2) {
-//				flg = 0;
-//				break;
-//			}
 			if (i + 1 >= len) {
 				flg = 0;
 				break;	
@@ -1715,28 +1712,6 @@ static int is_valid_utf8(const unsigned char *data, size_t len)
 				flg = 0;
 				break;	
 			}
-			t = *cur & 0x1F;
-			v = *(cur + 1) & 0x3F;
-			v |= t << 6;
-			if (v <= 0xA0) {
-				flg = 0;
-				break;
-			}
-			if (v == 0x70E || v == 0x70F || v == 0x7FF || v == 0x7FE || v == 0x7FD || v == 0x7FC || v == 0x7FB ||
-			    v == 0x7BF || v == 0x7BE || v == 0x7BD || v == 0x7BC || v == 0x7BB || v == 0x7BA || v == 0x7B9 ||
-			    v == 0x7B8 || v == 0x7B7 || v == 0x7B6 || v == 0x7B5 || v == 0x7B4 || v == 0x7B3 || v == 0x7B2 ||
-			    v == 0x74B || v == 0x74C || v == 0x61D || v == 0x5F5 || v == 0x5F6 || v == 0x5F7 || v == 0x5F8 ||
-			    v == 0x5F9 || v == 0x5FA || v == 0x5FB || v == 0x5FC || v == 0x5FD || v == 0x5FE || v == 0x5FF ||
-			    v == 0x5EB || v == 0x5EC || v == 0x5ED || v == 0x5EE || v == 0x5EF || v == 0x5C8 || v == 0x5C9 ||
-			    v == 0x5CA || v == 0x5CB || v == 0x5CC || v == 0x5CD || v == 0x5CE || v == 0x5CF || v == 0x588 ||
-			    v == 0x58B || v == 0x58C || v == 0x58D || v == 0x58E || v == 0x590 || v == 0x557 || v == 0x558 ||
-			    v == 0x560 || v == 0x530 ||
-			    v == 0x3A2 || v == 0x38D || v == 0x38B || v == 0x383 || v == 0x382 || v == 0x381 || v == 0x380 ||
-			    v == 0x379 || v == 0x378) {
-				flg = 0;
-				break;
-			}
-
 			i += 1;
 			cur += 1;
 			
