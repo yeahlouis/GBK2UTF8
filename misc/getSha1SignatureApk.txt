@@ -1,0 +1,67 @@
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+
+
+    public String getSha1SignatureApk(Context context) {
+
+        if (null == context) {
+            return "";
+        }
+        String path = context.getApplicationInfo().sourceDir;
+        if (null == path || path.length() <= 0) {
+            return "";
+        }
+
+        ZipFile zipfile = null;
+        try {
+            zipfile = new ZipFile(path);
+            Enumeration<? extends ZipEntry> entries = zipfile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String entryName = entry.getName();
+
+                if (entryName.startsWith("META-INF/") && entryName.toUpperCase().endsWith(".RSA") && entry.getSize() > 0) {
+
+                    CertificateFactory certfactory = CertificateFactory.getInstance("X.509");
+                    byte[] encoded = certfactory.generateCertificate(zipfile.getInputStream(entry)).getEncoded();
+
+                    MessageDigest digest = MessageDigest.getInstance("SHA-1");
+                    byte[] hash = digest.digest(encoded);
+                    StringBuffer hexString = new StringBuffer(hash.length * 2 + 2);
+                    for (int i = 0; i < hash.length; i++) {
+                        String appendString = Integer.toHexString(0xFF & hash[i]).toUpperCase();
+                        if (appendString.length() < 2)
+                            hexString.append("0");
+                        hexString.append(appendString);
+                    }
+                    return hexString.toString();
+                }
+            }
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (CertificateEncodingException e) {
+            e.printStackTrace();
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (zipfile != null) {
+                try {
+                    zipfile.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return "";
+    }
