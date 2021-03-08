@@ -1,5 +1,7 @@
-# Prerequisites
+# .bak files
 *.bak
+
+# Prerequisites
 *.d
 
 # Object files
