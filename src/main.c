@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
 	LOGD("is_valid_utf8 = [%d]\n", rv);
 	if (0 != rv) {
 		if (0 != is_valid_gbk((const unsigned char*)mem_ptr, strlen((char*)mem_ptr))) {
+            //既是utf-8又是gbk,按gbk处理
 			rv = 0;	
 		}
 	}
